@@ -369,6 +369,7 @@ async function saveProfile(){
     await sb.from("accounts").update({username:newName,avatar:window._pfAv}).eq("username",oldName);
     await sb.from("history").update({username:newName}).eq("username",oldName);
     await sb.from("daily_scores").update({username:newName,avatar:window._pfAv}).eq("username",oldName);
+    await sb.from("daily_progress").update({username:newName}).eq("username",oldName);
     await sb.from("presence").delete().eq("session_id",PRESENCE_SESSION_ID);
     await sb.from("lobby").update({username:newName,avatar:window._pfAv}).eq("username",oldName);
     await sb.from("multi_progress").update({username:newName,avatar:window._pfAv}).eq("username",oldName);
@@ -384,6 +385,7 @@ async function saveProfile(){
     await sb.from("chat").update({avatar:window._pfAv}).eq("username",oldName);
     await sb.from("private_messages").update({from_avatar:window._pfAv}).eq("from_user",oldName);
   }
+  try{if(oldName!==newName){var oldKey=dailyLocalKeyFor({username:oldName,guest:false},day),newKey=dailyLocalKeyFor({username:newName,guest:false},day),oldRaw=localStorage.getItem(oldKey);if(oldRaw&&!localStorage.getItem(newKey)){localStorage.setItem(newKey,oldRaw)}if(oldKey!==newKey)localStorage.removeItem(oldKey)}}catch(e){}
   user.username=newName;user.avatar=window._pfAv;
   localStorage.setItem("motus-user",JSON.stringify(user));
   try{var h2=await sb.from("history").select("*").eq("username",newName).order("id",{ascending:false}).limit(100);if(h2.data)hist=h2.data}catch(e){}
@@ -572,7 +574,8 @@ async function cleanupStalePresence(force){
   if(!force && now-presenceLastCleanup<55000)return;
   presenceLastCleanup=now;
   try{
-    await sb.from("presence").delete().lt("last_seen",new Date(now-PRESENCE_STALE_DELETE_MS).toISOString());
+    var ttl=Math.max(PRESENCE_STALE_DELETE_MS,PRESENCE_OFFLINE_MS+60000);
+    await sb.from("presence").delete().lt("last_seen",new Date(now-ttl).toISOString());
   }catch(e){}
 }
 async function getPresenceList(){
@@ -669,12 +672,45 @@ function pickAv(el,a){document.querySelectorAll(".avo").forEach(function(e){e.cl
 function showErr(m){document.getElementById("aerr").textContent=m;document.getElementById("aerr").classList.remove("hidden")}
 async function doAuth(){var u=document.getElementById("ai-u").value.trim(),p=document.getElementById("ai-p").value.trim();if(!u||!p){showErr("Remplis tout");return}if(window._am==="signup"){var ex=await sb.from("accounts").select("username").eq("username",u).single();if(ex.data){showErr("Pseudo pris");return}var ins=await sb.from("accounts").insert({username:u,password:p,avatar:window._selAv||"🦊"});if(ins.error){showErr(ins.error.message);return}user={username:u,avatar:window._selAv||"🦊"}}else{var d=await sb.from("accounts").select("*").eq("username",u).eq("password",p).single();if(!d.data){showErr("Identifiants incorrects");return}user={username:d.data.username,avatar:d.data.avatar}}localStorage.setItem("motus-user",JSON.stringify(user));startPresence();var h2=await sb.from("history").select("*").eq("username",user.username).order("id",{ascending:false}).limit(100);if(h2.data)hist=h2.data;if(window._pm){startGame(window._pm);window._pm=null}else renderHome()}
 function doGuest(){user={username:"Invite_"+~~(Math.random()*9999),avatar:AVATARS[~~(Math.random()*AVATARS.length)],guest:true};localStorage.setItem("motus-user",JSON.stringify(user));startPresence();if(window._pm){startGame(window._pm);window._pm=null}else renderHome()}
-function doLogout(){clearInterval(presenceIv);if(user)sb.from("presence").delete().eq("session_id",PRESENCE_SESSION_ID);user=null;hist=[];localStorage.removeItem("motus-user");renderHome()}
+function resetDailyState(){guesses=[];results=[];cur="";row=0;over=false;won=false;kbs={};tgt=""}
+function doLogout(){clearInterval(presenceIv);if(user)sb.from("presence").delete().eq("session_id",PRESENCE_SESSION_ID);user=null;hist=[];localStorage.removeItem("motus-user");resetDailyState();renderHome()}
+function dailyLocalKeyFor(u,forcedDay){var d=forcedDay||day;if(!u||u.guest)return "motus-guest-d:"+d;return "motus-user-d:"+String(u.username||"").toLowerCase()+":"+d}
+function readDailyLocal(u,forcedDay){var d=forcedDay||day;var keys=[dailyLocalKeyFor(u,d)];if(u&&!u.guest)keys.push("motus-user-d:"+String(u.username||"")+":"+d);if(!u||u.guest)keys.push("motus-d:"+d);for(var i=0;i<keys.length;i++){try{var raw=localStorage.getItem(keys[i]);if(raw){var sv=JSON.parse(raw);if(sv&&sv.word)return sv}}catch(e){}}return null}
+function writeDailyLocal(u,payload,forcedDay){var d=forcedDay||day;try{localStorage.setItem(dailyLocalKeyFor(u,d),JSON.stringify(payload))}catch(e){}}
+function applyDailyState(sv){tgt=sv.word;guesses=sv.guesses||[];results=sv.results||[];row=guesses.length;over=!!sv.over;won=!!sv.won;kbs=sv.kb||{};cur=""}
 
 // ═══ GAME ═══
 async function startGame(mode){isExp=mode==="timer-expert";if(isExp)mode="timer";gm=mode;guesses=[];results=[];cur="";row=0;over=false;won=false;kbs={};skipCdUntil=0;clearInterval(skipCdIv);skipCdIv=null;streak=0;wIdx=0;sessionWords=[];lastLetters=[];clearInterval(timerIv);timerOn=false;timerVal=120;skipCdUntil=0;clearInterval(skipCdIv);skipCdIv=null;
   if(mode==="timer"){tgt=wordSeed("tmr-"+Date.now(),0);renderGame()}
-  else if(mode==="daily"){syncDay(true);var s=localStorage.getItem("motus-d:"+day);if(s){var sv=JSON.parse(s);tgt=sv.word;guesses=sv.guesses;results=sv.results;row=guesses.length;over=true;won=sv.won;kbs=sv.kb||{};renderGame();return}tgt=wordDay(day);renderGame()}
+  else if(mode==="daily"){
+    syncDay(true);
+    if(user&&!user.guest){
+      try{
+        var ds=await sb.from("daily_progress").select("*").eq("username",user.username).eq("day",day).maybeSingle();
+        if(ds&&ds.data&&ds.data.word){
+          applyDailyState(ds.data);
+          writeDailyLocal(user,{word:tgt,guesses:guesses,results:results,won:won,over:over,kb:kbs});
+          renderGame();
+          return;
+        }
+      }catch(e){}
+      var su=readDailyLocal(user,day);
+      if(su){
+        applyDailyState(su);
+        renderGame();
+        saveDailyProgress();
+        return;
+      }
+    } else {
+      var sg=readDailyLocal(null,day);
+      if(sg){
+        applyDailyState(sg);
+        renderGame();
+        return;
+      }
+    }
+    tgt=wordDay(day);renderGame()
+  }
   else if(mode==="solo"){tgt=wordSeed("s-"+Date.now(),0);renderGame()}
   else if(mode==="multi"){renderLobbyBrowser()}
 }
@@ -702,6 +738,35 @@ function copyResultSummary(){var lines=[];var modeLabel=gm==="daily"?"Mot du jou
 function handleKey(k){if(over||window._rv)return;if(k==="ENTER"){vib(16);doSubmit();return}if(k==="BACK"){cur=cur.slice(0,-1);vib(8);renderGrid();return}var max=isExp?wlen():wlen()-1;if((/^[A-Z]$/.test(k)||k===".")&&cur.length<max){cur+=k;sfx("type");vib(8);renderGrid()}}
 async function saveHist(entry){if(!user||user.guest)return;try{await sb.from("history").insert({username:user.username,word:entry.word,guesses:entry.guesses,results:entry.results,won:entry.won,mode:entry.mode,expert:entry.expert||false})}catch(e){}hist.unshift(entry)}
 async function saveDailyLb(pts){if(!user||user.guest)return;try{await sb.from("daily_scores").upsert({username:user.username,avatar:user.avatar||"🦊",day:day,score:pts})}catch(e){}}
+async function saveDailyProgress(){
+  if(gm!=="daily")return;
+  var payload={word:tgt,guesses:guesses,results:results,won:!!won,over:!!over,kb:kbs};
+  writeDailyLocal(user,payload,day);
+  if(!user||user.guest)return;
+  try{
+    var up=await sb.from("daily_progress").upsert({
+      username:user.username,
+      day:day,
+      word:tgt,
+      guesses:guesses,
+      results:results,
+      kb:kbs,
+      won:!!won,
+      over:!!over,
+      updated_at:new Date().toISOString()
+    },{onConflict:"username,day"});
+    if(up&&up.error)throw up.error;
+  }catch(e){
+    try{
+      var ex=await sb.from("daily_progress").select("id").eq("username",user.username).eq("day",day).maybeSingle();
+      if(ex&&ex.data&&ex.data.id){
+        await sb.from("daily_progress").update({word:tgt,guesses:guesses,results:results,kb:kbs,won:!!won,over:!!over,updated_at:new Date().toISOString()}).eq("id",ex.data.id);
+      }else{
+        await sb.from("daily_progress").insert({username:user.username,day:day,word:tgt,guesses:guesses,results:results,kb:kbs,won:!!won,over:!!over,updated_at:new Date().toISOString()});
+      }
+    }catch(_e){}
+  }
+}
 var _dailyPenaltySweepAt=0;
 async function triggerDailyPenaltySweep(force){var now=Date.now();if(!force&&now-_dailyPenaltySweepAt<30000)return false;_dailyPenaltySweepAt=now;try{await sb.rpc('apply_missing_daily_penalties_for_previous_day');return true}catch(e){return false}}
 
@@ -712,6 +777,7 @@ function doSubmit(){
   if(gm==="timer"&&!timerOn)startTimer();
   var res=cmp(full,tgt);guesses.push(full);results.push(res);window._rvR=row;renderGrid();sfx("flip");
   for(var i=0;i<full.length;i++){var l=full[i],st=res[i];if(isExp){if(st==="correct")kbs[l]="kok";else if(!kbs[l])kbs[l]="keu"}else{if(st==="correct")kbs[l]="kok";else if(st==="present"&&kbs[l]!=="kok")kbs[l]="kpr";else if(st==="absent"&&!kbs[l])kbs[l]="kab"}}
+  if(gm==="daily"){won=false;over=false;saveDailyProgress()}
   var isW=res.every(function(r){return r==="correct"});var isL=row+1>=MAXR&&!isW;
   window._rv=true;
   setTimeout(function(){
@@ -722,7 +788,7 @@ function doSubmit(){
       if(gm==="multi-timed"){timerVal+=10;sfx("bonus");showTimerBonus("+10s","var(--gr)")}
       fireFx("confetti");var sr=[].concat(results);sessionWords.push({word:tgt,results:sr,won:true,gc:guesses.length});
       saveHist({word:tgt,guesses:[].concat(guesses),results:sr,won:true,mode:gm,expert:isExp});
-      if(gm==="daily"){saveDailyLb(guesses.length);localStorage.setItem("motus-d:"+day,JSON.stringify({word:tgt,guesses:guesses,results:results,won:true,kb:kbs}))}
+      if(gm==="daily"){saveDailyLb(guesses.length);saveDailyProgress()}
       if(gm==="multi-timed"||gm==="multi-words")saveMultiProgress();
       renderGrid();renderKb();renderSess();
       if(gm==="solo"||(gm==="timer"&&timerVal>0)||(gm==="multi-timed"&&timerVal>0)||(gm==="multi-words"&&wIdx<multiWordCount-1))setTimeout(doNext,900);
@@ -738,11 +804,12 @@ function doSubmit(){
         if(gm==="multi-timed"){clearInterval(timerIv);timerOn=false;saveMultiFinish()}
         sessionWords.push({word:tgt,results:[].concat(results),won:false,gc:guesses.length});
         saveHist({word:tgt,guesses:[].concat(guesses),results:[].concat(results),won:false,mode:gm,expert:isExp});
-        if(gm==="daily"){saveDailyLb(7);localStorage.setItem("motus-d:"+day,JSON.stringify({word:tgt,guesses:guesses,results:results,won:false,kb:kbs}))}
+        if(gm==="daily"){saveDailyLb(7);saveDailyProgress()}
         if(gm==="multi-timed"||gm==="multi-words")saveMultiProgress();
         renderGrid();renderKb();renderSess();setTimeout(showResult,800);
       }
     } else {
+      if(gm==="daily")saveDailyProgress();
       if(gm==="multi-timed"||gm==="multi-words")saveMultiProgress();
       renderGrid();renderKb();
     }
