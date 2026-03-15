@@ -753,13 +753,57 @@ function doGuest(){user={username:"Invite_"+~~(Math.random()*9999),avatar:AVATAR
 function doLogout(){clearInterval(presenceIv);if(user)sb.from("presence").delete().eq("session_id",PRESENCE_SESSION_ID);user=null;hist=[];localStorage.removeItem("motus-user");renderHome()}
 
 // ═══ GAME ═══
+function randomWord(){
+  let w;
+  do{
+    w = SOLUTIONS[Math.floor(Math.random()*SOLUTIONS.length)];
+  }while(w === tgt);
+  return w;
+}
 async function startGame(mode){isExp=mode==="timer-expert";if(isExp)mode="timer";gm=mode;guesses=[];results=[];cur="";row=0;over=false;won=false;kbs={};skipCdUntil=0;clearInterval(skipCdIv);skipCdIv=null;streak=0;wIdx=0;sessionWords=[];lastLetters=[];clearInterval(timerIv);timerOn=false;timerVal=120;skipCdUntil=0;clearInterval(skipCdIv);skipCdIv=null;
-  if(mode==="timer"){tgt=wordSeed("tmr-"+Date.now(),0);renderGame()}
-  else if(mode==="daily"){syncDay(true);startDailyRealtime();var saved=null;if(user && !user.guest){saved=await loadDailyState();}if(!saved){var s=localStorage.getItem("motus-d:"+day);
-	if(s){try{saved=JSON.parse(s)}catch(e){}}}
-	if(saved){tgt=saved.word;guesses=saved.guesses||[];results=saved.results||[];row=guesses.length;over=!!saved.over;won=!!saved.won;kbs=saved.kb||{};cur="";renderGame();return;}tgt=wordDay(day);renderGame();}
-  else if(mode==="solo"){tgt=wordSeed("s-"+Date.now(),0);renderGame()}
-  else if(mode==="multi"){renderLobbyBrowser()}
+  if(mode==="timer"){
+  tgt=wordSeed("tmr-"+Date.now(),0);
+  renderGame();
+}
+else if(mode==="daily"){
+  syncDay(true);
+  startDailyRealtime();
+
+  var saved=null;
+  if(user && !user.guest){
+    saved=await loadDailyState();
+  }
+
+  if(!saved){
+    var s=localStorage.getItem("motus-d:"+day);
+    if(s){
+      try{saved=JSON.parse(s)}catch(e){}
+    }
+  }
+
+  if(saved){
+    tgt=saved.word;
+    guesses=saved.guesses||[];
+    results=saved.results||[];
+    row=guesses.length;
+    over=!!saved.over;
+    won=!!saved.won;
+    kbs=saved.kb||{};
+    cur="";
+    renderGame();
+    return;
+  }
+
+  tgt=wordDay(day);
+  renderGame();
+}
+else if(mode==="solo"){
+  tgt=randomWord();
+  renderGame();
+}
+else if(mode==="multi"){
+  renderLobbyBrowser();
+}
 }
 function renderGame(){showScreen("game");
   var ml=isExp?"Expert":{daily:"Mot du Jour",solo:"Infini Solo","multi-timed":"Multi ⏱️","multi-words":"Multi 🎯 "+multiWordCount+" mots",timer:"Chrono"}[gm]||gm;
