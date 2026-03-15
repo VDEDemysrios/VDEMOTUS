@@ -791,13 +791,26 @@ function makeAccentCandidates(word){
 }
 async function fetchWiktionaryExtract(title){
   try{
-    var url="https://fr.wiktionary.org/w/api.php?action=query&titles="+encodeURIComponent(title)+"&prop=extracts&exintro=true&explaintext=true&redirects=1&format=json&origin=*";
+    var url="https://fr.wiktionary.org/w/api.php?action=parse&page="+encodeURIComponent(title)+"&prop=text&format=json&origin=*";
     var r=await fetch(url);
     var d=await r.json();
-    var pg=Object.values((d&&d.query&&d.query.pages)||{})[0];
-    if(pg&&pg.extract){
-      var txt=cleanDefinitionText(pg.extract);
-      if(txt)return txt.length>320?txt.slice(0,317)+"...":txt;
+    var html=d&&d.parse&&d.parse.text&&d.parse.text["*"];
+    if(!html)return null;
+    var doc=new DOMParser().parseFromString(html,"text/html");
+    var items=Array.from(doc.querySelectorAll("ol > li"));
+    for(var i=0;i<items.length;i++){
+      var li=items[i];
+      var clone=li.cloneNode(true);
+      clone.querySelectorAll("ol, ul, dl, table, style, sup, .reference, blockquote").forEach(function(n){
+        n.remove();
+      });
+      var txt=(clone.textContent||"")
+        .replace(/\[\d+\]/g," ")
+        .replace(/\s+/g," ")
+        .trim();
+      if(txt && txt.length>8){
+        return txt.length>320 ? txt.slice(0,317)+"..." : txt;
+      }
     }
   }catch(e){}
   return null;
