@@ -257,10 +257,15 @@ async function loadDailyState(){
   }
   return null;
 }
+let dailyChannel = null;
+
 function startDailyRealtime(){
+
   if(!user || user.guest) return;
 
-  sb.channel("daily_state_watch")
+  if(dailyChannel) return;
+
+  dailyChannel = sb.channel("daily_state_watch")
     .on(
       "postgres_changes",
       {
