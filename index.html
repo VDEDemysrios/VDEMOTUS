@@ -218,6 +218,79 @@ const SB_URL="https://xjvkmvwdglfzljukbcqd.supabase.co";
 const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqdmttdndkZ2xmemxqdWtiY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyNTY4MDAsImV4cCI6MjA4ODgzMjgwMH0.Y5R68sacjU5WeEkC6xlTRdUZMWX4oIO3k92GBkMZ82w";
 const sb=supabase.createClient(SB_URL,SB_KEY);
 
+// ═══ DAILY CLOUD SAVE ═══
+async function saveDailyState(){
+  if(!user || user.guest || gm!=="daily"){
+    return;
+  }
+  var payload={
+    username:user.username,
+    day:day,
+    word:tgt,
+    guesses:guesses,
+    results:results,
+    won:!!won,
+    over:!!over,
+    kb:kbs,
+    updated_at:new Date().toISOString()
+  };
+  try{
+    var resp=await sb.from("daily_state").upsert(payload,{onConflict:"username,day"});
+  }catch(e){
+    console.error("saveDailyState error", e);
+  }
+}
+async function loadDailyState(){
+  if(!user || user.guest){
+    return null;
+  }
+  try{
+    var r=await sb
+      .from("daily_state")
+      .select("word,guesses,results,won,over,kb,updated_at")
+      .eq("username",user.username)
+      .eq("day",day)
+      .maybeSingle();
+    if(r && r.data) return r.data;
+  }catch(e){
+    console.error("loadDailyState error", e);
+  }
+  return null;
+}
+function startDailyRealtime(){
+  if(!user || user.guest) return;
+
+  sb.channel("daily_state_watch")
+    .on(
+      "postgres_changes",
+      {
+        event:"UPDATE",
+        schema:"public",
+        table:"daily_state",
+        filter:`username=eq.${user.username}`
+      },
+      function(payload){
+
+        if(payload.new.day!==day) return;
+
+        var d=payload.new;
+
+        tgt=d.word;
+        guesses=d.guesses||[];
+        results=d.results||[];
+        row=guesses.length;
+        won=!!d.won;
+        over=!!d.over;
+        kbs=d.kb||{};
+        cur="";
+
+        renderGrid();
+        renderKb();
+      }
+    )
+    .subscribe();
+}
+
 // ═══ WORD LISTS ═══
 if(typeof SOLUTIONS==='undefined'||typeof PROPOSABLES==='undefined'){
   document.body.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px;padding:40px;text-align:center"><h1 style="font-family:Archivo Black;color:#E63946;font-size:28px">Fichiers manquants</h1><p style="color:#8B949E;max-width:400px">motsSolutions.js et motsProposables.js doivent etre dans le meme dossier que index.html</p></div>';
@@ -503,6 +576,7 @@ function _syncMusicContext(force){
 function startMus(){if(settings.musicVolume<=0){updateMusicButton();return}if(musOn){_applyMusicVolumes();return}try{musCtx=window.AudioContext||window.webkitAudioContext?new(window.AudioContext||window.webkitAudioContext)():null}catch(e){musCtx=null}musOn=true;_syncMusicContext(true);if(!_musicCtxIv)_musicCtxIv=setInterval(_syncMusicContext,1000);updateMusicButton()}
 function stopMus(){musOn=false;_clearMusicTimers();_stopAudioNode(_musicCurrent);_stopAudioNode(_musicNext);_musicCurrent=null;_musicNext=null;clearInterval(_musicCtxIv);_musicCtxIv=null;if(musCtx){try{musCtx.close()}catch(e){}musCtx=null}updateMusicButton()}
 function toggleMusic(){if(musOn&&settings.musicVolume>0){lastMusicVolume=settings.musicVolume>0?settings.musicVolume:lastMusicVolume||80;settings.musicVolume=0;localStorage.setItem('motus-mus','0');saveSettings();stopMus();}else{settings.musicVolume=lastMusicVolume>0?lastMusicVolume:80;localStorage.setItem('motus-mus','1');saveSettings();startMus();_applyMusicVolumes();}}
+
 // ═══ FX ═══
 var fxc=document.getElementById("fxc"),fxCtx=fxc.getContext("2d");var fxP=[],fxR=false,fxT="";
 function fireFx(type){fxP=[];fxc.width=window.innerWidth;fxc.height=window.innerHeight;fxT=type;if(type==="confetti"){for(var i=0;i<180;i++)fxP.push({x:Math.random()*fxc.width,y:Math.random()*fxc.height-fxc.height,vx:(Math.random()-0.5)*5,vy:Math.random()*4+2,w:Math.random()*12+4,h:Math.random()*8+3,col:["#E63946","#FFD166","#06D6A0","#118AB2","#F4A261","#9B5DE5"][~~(Math.random()*6)],rot:Math.random()*360,vr:(Math.random()-0.5)*12,life:1,dec:0.002+Math.random()*0.003})}else{var cx=fxc.width/2,cy=fxc.height/2;for(var i=0;i<100;i++){var a=Math.random()*Math.PI*2,sp=Math.random()*10+3;fxP.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,r:Math.random()*7+2,col:["#E63946","#FF6B35","#FFD166","#C1121F","#FF4500"][~~(Math.random()*5)],life:1,dec:0.012+Math.random()*0.012,grav:0.15})}}fxR=true;drawFx()}
@@ -514,6 +588,7 @@ window.addEventListener("resize",function(){bgc.width=window.innerWidth;bgc.heig
 var _lastTouchEnd=0;document.addEventListener("touchend",function(e){var now=Date.now();if(now-_lastTouchEnd<320&&!e.target.closest("input,textarea,[contenteditable=true]")){e.preventDefault()}_lastTouchEnd=now},{passive:false});
 
 window._modalOpen=false;
+
 // ═══ STATE ═══
 var user=null,day=localDay(),hist=[];
 var defCache={};
@@ -675,7 +750,9 @@ function doLogout(){clearInterval(presenceIv);if(user)sb.from("presence").delete
 // ═══ GAME ═══
 async function startGame(mode){isExp=mode==="timer-expert";if(isExp)mode="timer";gm=mode;guesses=[];results=[];cur="";row=0;over=false;won=false;kbs={};skipCdUntil=0;clearInterval(skipCdIv);skipCdIv=null;streak=0;wIdx=0;sessionWords=[];lastLetters=[];clearInterval(timerIv);timerOn=false;timerVal=120;skipCdUntil=0;clearInterval(skipCdIv);skipCdIv=null;
   if(mode==="timer"){tgt=wordSeed("tmr-"+Date.now(),0);renderGame()}
-  else if(mode==="daily"){syncDay(true);var s=localStorage.getItem("motus-d:"+day);if(s){var sv=JSON.parse(s);tgt=sv.word;guesses=sv.guesses||[];results=sv.results||[];row=guesses.length;over=!!sv.over;won=!!sv.won;kbs=sv.kb||{};cur="";renderGame();return}tgt=wordDay(day);renderGame()}
+  else if(mode==="daily"){syncDay(true);startDailyRealtime();var saved=null;if(user && !user.guest){saved=await loadDailyState();}if(!saved){var s=localStorage.getItem("motus-d:"+day);
+	if(s){try{saved=JSON.parse(s)}catch(e){}}}
+	if(saved){tgt=saved.word;guesses=saved.guesses||[];results=saved.results||[];row=guesses.length;over=!!saved.over;won=!!saved.won;kbs=saved.kb||{};cur="";renderGame();return;}tgt=wordDay(day);renderGame();}
   else if(mode==="solo"){tgt=wordSeed("s-"+Date.now(),0);renderGame()}
   else if(mode==="multi"){renderLobbyBrowser()}
 }
@@ -711,7 +788,8 @@ function doSubmit(){
   if(full.length<W){window._skR=row;renderGrid();showToast("Pas assez de lettres !");sfx("error");vib([20,30,20]);setTimeout(function(){window._skR=-1;renderGrid()},600);return}
   if(!isValidWord(full)){window._skR=row;renderGrid();showToast("Mot inconnu !");sfx("error");vib([20,30,20]);setTimeout(function(){window._skR=-1;renderGrid()},600);return}
   if(gm==="timer"&&!timerOn)startTimer();
-  var res=cmp(full,tgt);guesses.push(full);results.push(res);if(gm==="daily"){localStorage.setItem("motus-d:"+day,JSON.stringify({word:tgt,guesses:guesses,results:results,won:false,over:false,kb:kbs}))}window._rvR=row;renderGrid();sfx("flip");
+  var res=cmp(full,tgt);guesses.push(full);results.push(res);
+  if(gm==="daily"){localStorage.setItem("motus-d:"+day,JSON.stringify({word:tgt,guesses:guesses,results:results,won:false,over:false,kb:kbs}));saveDailyState();}window._rvR=row;renderGrid();sfx("flip");
   for(var i=0;i<full.length;i++){var l=full[i],st=res[i];if(isExp){if(st==="correct")kbs[l]="kok";else if(!kbs[l])kbs[l]="keu"}else{if(st==="correct")kbs[l]="kok";else if(st==="present"&&kbs[l]!=="kok")kbs[l]="kpr";else if(st==="absent"&&!kbs[l])kbs[l]="kab"}}
   var isW=res.every(function(r){return r==="correct"});var isL=row+1>=MAXR&&!isW;
   window._rv=true;
@@ -723,7 +801,7 @@ function doSubmit(){
       if(gm==="multi-timed"){timerVal+=10;sfx("bonus");showTimerBonus("+10s","var(--gr)")}
       fireFx("confetti");var sr=[].concat(results);sessionWords.push({word:tgt,results:sr,won:true,gc:guesses.length});
       saveHist({word:tgt,guesses:[].concat(guesses),results:sr,won:true,mode:gm,expert:isExp});
-      if(gm==="daily"){saveDailyLb(guesses.length);localStorage.setItem("motus-d:"+day,JSON.stringify({word:tgt,guesses:guesses,results:results,won:true,over:true,kb:kbs}))}
+      if(gm==="daily"){saveDailyLb(guesses.length);localStorage.setItem("motus-d:"+day,JSON.stringify({word:tgt,guesses:guesses,results:results,won:true,over:true,kb:kbs}));saveDailyState();}
       if(gm==="multi-timed"||gm==="multi-words")saveMultiProgress();
       renderGrid();renderKb();renderSess();
       if(gm==="solo"||(gm==="timer"&&timerVal>0)||(gm==="multi-timed"&&timerVal>0)||(gm==="multi-words"&&wIdx<multiWordCount-1))setTimeout(doNext,900);
@@ -739,7 +817,7 @@ function doSubmit(){
         if(gm==="multi-timed"){clearInterval(timerIv);timerOn=false;saveMultiFinish()}
         sessionWords.push({word:tgt,results:[].concat(results),won:false,gc:guesses.length});
         saveHist({word:tgt,guesses:[].concat(guesses),results:[].concat(results),won:false,mode:gm,expert:isExp});
-        if(gm==="daily"){saveDailyLb(7);localStorage.setItem("motus-d:"+day,JSON.stringify({word:tgt,guesses:guesses,results:results,won:false,over:true,kb:kbs}))}
+		if(gm==="daily"){saveDailyLb(7);localStorage.setItem("motus-d:"+day,JSON.stringify({word:tgt,guesses:guesses,results:results,won:false,over:true,kb:kbs}));saveDailyState();}
         if(gm==="multi-timed"||gm==="multi-words")saveMultiProgress();
         renderGrid();renderKb();renderSess();setTimeout(showResult,800);
       }
