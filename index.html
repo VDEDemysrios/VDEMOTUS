@@ -1360,6 +1360,10 @@ async function fetchDefinition(word){
   if(directDef){
     // Check if the direct definition is a verb conjugation
     var vm=directDef.match(/\bverbe\s+([a-z\u00e0-\u00ff\u0153\u00e6]+(?:er|ir|re|oir))\b/i);
+    if(!vm){
+      // Also catch "du/de cambuter" at end: "... de l'indicatif de cambuter."
+      vm=directDef.match(/\b(?:de|du)\s+([a-z\u00e0-\u00ff\u0153\u00e6]{4,}(?:er|ir|re|oir))\s*[\.\,]?\s*$/i);
+    }
     if(vm){
       isVerbForm=true;
       lemmaWord=vm[1].toLowerCase();
@@ -1369,7 +1373,7 @@ async function fetchDefinition(word){
       var fm=directDef.match(/\bforme\s+de\s+([a-z\u00e0-\u00ff\u0153\u00e6]+)\b/i);
       if(fm){lemmaWord=fm[1].toLowerCase();lemmaDef=await tryFetch(lemmaWord);}
     }
-  }
+  } // close if(directDef)
 
   // Morphological fallback — strategy depends on whether it's a verb form or not
   if(!lemmaDef){
@@ -1446,6 +1450,10 @@ async function fetchDefinition(word){
 }
 function shouldShowDefinition(){return gm==="daily"||gm==="solo"||!won}
 
+function closeRov(){
+  var rov=document.querySelector(".rov");
+  if(rov)rov.remove();
+}
 function showResult(){var gw=document.getElementById("gw");if(!gw)return;var rk=getRank(won?guesses.length:7);var showDef=shouldShowDefinition();
   var h='<div class="rov"><div style="font-size:56px;animation:bi .6s both">'+(won?"🎉":"💥")+'</div><div style="font-family:Archivo Black,sans-serif;font-size:clamp(22px,6vw,32px);color:var(--r);letter-spacing:4px">'+tgt+'</div>';
   if(gm==="daily"&&won)h+='<div style="text-align:center"><div style="font-family:Archivo Black;font-size:20px;color:'+rk.c+'">'+rk.e+" "+rk.t+" "+rk.e+'</div><div style="font-size:13px;color:var(--t2)">'+guesses.length+' essai'+(guesses.length>1?"s":"")+'</div></div>';
@@ -1454,11 +1462,12 @@ function showResult(){var gw=document.getElementById("gw");if(!gw)return;var rk=
   if(showDef)h+='<div style="font-size:11px;color:var(--t3);font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-top:2px">Définition</div><div id="defzone" style="max-width:380px;text-align:left;font-size:12px;color:var(--t2);line-height:1.6;margin:2px 0 6px;font-style:italic;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);padding:10px 14px;border-radius:12px;max-height:200px;overflow-y:auto">Chargement…</div>';
   h+='<div class="rbs">';
   if((gm==="solo"||(gm==="timer"&&timerVal>0))&&won)h+='<button class="btn bp bsm" onclick="doNext()">Suivant →</button>';
-  if(gm==="multi-timed"&&won&&timerVal>0)h+='<button class="btn bp bsm" onclick="doNext()">Suivant</button>';
-  if(gm==="multi-words"&&won&&wIdx<multiWordCount-1)h+='<button class="btn bp bsm" onclick="doNext()">Suivant</button>';
-  if(gm==="multi-words"&&(won&&wIdx>=multiWordCount-1||!won))h+='<button class="btn bp bsm" onclick="showMultiRanking()">Classement</button>';
-  if(gm==="multi-timed"&&(!won||timerVal<=0))h+='<button class="btn bp bsm" onclick="showMultiRanking()">Classement</button>';
-  if(gm==="multi-battle"&&!won)h+='<div style="font-size:13px;color:var(--r);font-weight:800;margin:4px 0">⚔️ Tu es éliminé !</div><button class="btn bp bsm" onclick="showMultiRanking()">Classement</button>';
+  if(gm==="multi-timed"&&won&&timerVal>0)h+='<button class="btn bp bsm" onclick="closeRov();doNext()">Suivant</button>';
+  if(gm==="multi-words"&&won&&wIdx<multiWordCount-1)h+='<button class="btn bp bsm" onclick="closeRov();doNext()">Suivant</button>';
+  if(gm==="multi-words"&&(won&&wIdx>=multiWordCount-1||!won))h+='<button class="btn bp bsm" onclick="showMultiRanking()">🏆 Classement</button>';
+  if(gm==="multi-timed"&&(!won||timerVal<=0))h+='<button class="btn bp bsm" onclick="showMultiRanking()">🏆 Classement</button>';
+  if(gm==="multi-battle"&&!won)h+='<button class="btn bp bsm" onclick="showMultiRanking()">🏆 Classement</button>';
+  if(gm==="multi-timed"||gm==="multi-words"||gm==="multi-battle")h+='<button class="btn bs bsm" onclick="closeRov()">✕ Fermer</button>';
   if(gm!=="daily"&&gm!=="multi-timed"&&gm!=="multi-words"&&gm!=="multi-battle"&&!won)h+='<button class="btn bp bsm" onclick="startGame(\''+(gm==="timer"&&isExp?"timer-expert":gm)+'\')">Rejouer</button>';
   if(gm==="solo"&&won)h+='<button class="btn bs bsm" onclick="clearSoloState();startGame(\'solo\')">Nouvelle série</button>';
   if(gm==="daily")h+='<div style="font-size:12px;color:var(--t3)">Reviens demain !</div>';
@@ -1962,9 +1971,11 @@ body.theme-graphite{--bg:#101114;--bg2:#17191e;--bg3:#23262d;--bg4:#2d313b;--t:#
     if((gm==='solo'||(gm==='timer'&&timerVal>0))&&won) h+='<button class="btn bp bsm" onclick="doNext()">Suivant →</button>';
     if(gm==='multi-timed'&&won&&timerVal>0) h+='<button class="btn bp bsm" onclick="doNext()">Suivant</button>';
     if(gm==='multi-words'&&won&&wIdx<multiWordCount-1) h+='<button class="btn bp bsm" onclick="doNext()">Suivant</button>';
-    if(gm==='multi-words'&&((won&&wIdx>=multiWordCount-1)||!won)) h+='<button class="btn bp bsm" onclick="showMultiRanking()">Classement</button>';
-    if(gm==='multi-timed'&&(!won||timerVal<=0)) h+='<button class="btn bp bsm" onclick="showMultiRanking()">Classement</button>';
-    if(gm==='multi-battle'&&!won) h+='<div style="font-size:13px;color:var(--r);font-weight:800;margin:4px 0">⚔️ Tu es éliminé !</div><button class="btn bp bsm" onclick="showMultiRanking()">Classement</button>';
+    if(gm==='multi-words'&&won&&wIdx<multiWordCount-1) h+='<button class="btn bs bsm" onclick="var r=document.querySelector(\'.rov\');if(r)r.remove()">Continuer ↩</button>';
+    if(gm==='multi-words'&&((won&&wIdx>=multiWordCount-1)||!won)) h+='<button class="btn bp bsm" onclick="showMultiRanking()">🏆 Classement</button>';
+    if(gm==='multi-timed'&&won&&timerVal>0) h+='<button class="btn bs bsm" onclick="var r=document.querySelector(\'.rov\');if(r)r.remove()">Continuer ↩</button>';
+    if(gm==='multi-timed'&&(!won||timerVal<=0)) h+='<button class="btn bp bsm" onclick="showMultiRanking()">🏆 Classement</button>';
+    if(gm==='multi-battle'&&!won) h+='<div style="font-size:13px;color:var(--r);font-weight:800;margin:4px 0">⚔️ Tu es éliminé !</div><button class="btn bp bsm" onclick="enterSpectatorMode(\'⚔️ Tu as été éliminé !\')">Voir la suite</button>';
     if(gm==='multi-battle'&&won) h+='<button class="btn bp bsm" onclick="showMultiRanking()">🏆 Classement</button>';
     if(gm!=='daily'&&gm!=='multi-timed'&&gm!=='multi-words'&&gm!=='multi-battle'&&!won) h+='<button class="btn bp bsm" onclick="startGame(\''+( gm==='timer'&&isExp?'timer-expert':gm )+'\')">Rejouer</button>';
     if(gm==='solo'&&won) h+='<button class="btn bs bsm" onclick="clearSoloState();startGame(\'solo\')">Nouvelle série</button>';
