@@ -976,7 +976,7 @@ function launchBrique(){
   ov.innerHTML=
     '<div style="font-family:\'Archivo Black\',sans-serif;font-size:18px;color:#E63946;letter-spacing:4px;margin-bottom:2px">🧱 CASSE-BRIQUE</div>'
     +'<div style="font-size:10px;color:rgba(255,255,255,.35);letter-spacing:5px;margin-bottom:6px">by MOTUS · VDE</div>'
-    +'<div style="font-size:11px;color:rgba(255,255,255,.4);margin-bottom:8px">← → / Q D pour déplacer · ESC quitter</div>'
+    +'<div style="font-size:11px;color:rgba(255,255,255,.4);margin-bottom:8px">← → / Q D · ESPACE lancer · ESC quitter</div>'
     +'<canvas id="brique-canvas" width="480" height="400" style="border:2px solid #E63946;border-radius:10px;background:#0B0E14;max-width:96vw;touch-action:none"></canvas>'
     +'<div style="margin-top:10px;display:flex;gap:16px;align-items:center">'
     +'<span id="bq-level" style="font-family:\'Archivo Black\',sans-serif;color:#9B5DE5;font-size:13px">Niv.1</span>'
@@ -1324,6 +1324,11 @@ function launchBrique(){
       }
     }
 
+    // Show launch hint when ball is stuck
+    if(!over&&balls.length>0&&balls[0].stuck){
+      ctx.fillStyle="rgba(255,255,255,.35)";ctx.font="bold 11px Nunito,sans-serif";ctx.textAlign="center";
+      ctx.fillText("ESPACE ou CLIC pour lancer",W/2,pad.y-14);ctx.textAlign="left";
+    }
     if(over){
       ctx.fillStyle="rgba(0,0,0,.65)";ctx.fillRect(0,H/2-50,W,100);
       ctx.fillStyle=won?"#FFD166":"#E63946";ctx.font="bold 28px 'Archivo Black',sans-serif";ctx.textAlign="center";
@@ -1353,6 +1358,11 @@ function launchBrique(){
   rAF=requestAnimationFrame(loop);
 }
 
+
+function closeBrique(){
+  var ov=document.getElementById("brique-overlay");
+  if(ov){if(ov._cleanup)ov._cleanup();ov.remove();}
+}
 
 // ═══ EASTER EGG — SPACE MOTUS ═══
 function launchSpace(){
