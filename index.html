@@ -1285,7 +1285,7 @@ function launchSpace(){
         bullets.splice(bi,1);boss.hp--;
         if(boss.hp<=0){
           explode(boss.x,boss.y,"#E63946",true);explode(boss.x-20,boss.y-10,"#FFD166",false);
-          score+=200+level*20;sfx("win");fireFx&&fireFx("confetti");
+          score+=300+level*30;sfx("win");fireFx&&fireFx("confetti");
           showBonusToast("🏆 BOSS VAINCU ! +"+(200+level*20)+" pts");
           // Drop 3 bonuses
           var bx2=boss?boss.x:W/2,by2=boss?boss.y:80;boss=null;
@@ -1468,7 +1468,7 @@ function launchSpace(){
     var anyChanged=false;
     Object.keys(BONUS_ACTIVE).forEach(function(k){BONUS_ACTIVE[k].timer-=dt;if(BONUS_ACTIVE[k].timer<=0){delete BONUS_ACTIVE[k];anyChanged=true;}});
     if(anyChanged)updateBonusBar();
-    var newLevel=1+Math.floor(score/250);
+    var newLevel=1+Math.floor(score/140);
     if(newLevel>level){level=newLevel;showBonusToast("⚡ NIVEAU "+level+" !");if(level%10===0)spawnBoss();}
     var spd=ship.spd*dtS;
     if(keys["ArrowLeft"]||keys["q"]||keys["Q"])ship.x=Math.max(18,ship.x-spd);
@@ -1497,7 +1497,7 @@ function launchSpace(){
         var e=enemies[ei];
         if(rect(bul.x-bul.w/2,bul.y-bul.h,bul.w,bul.h,e.x-13,e.y-13,26,26)){
           hit=true;e.hp--;
-          if(e.hp<=0){score+=5*level;sfx("flip");explode(e.x,e.y,e.color,false);spawnBonusAt(e.x,e.y);enemies.splice(ei,1);}
+          if(e.hp<=0){score+=15*level;sfx("flip");explode(e.x,e.y,e.color,false);spawnBonusAt(e.x,e.y);enemies.splice(ei,1);}
           break;
         }
       }
