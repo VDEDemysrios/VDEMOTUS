@@ -984,6 +984,7 @@ function launchBrique(){
   ov.style.position="fixed";ov.style.inset="0";ov.style.zIndex="9999";
   ov.style.background="rgba(0,0,0,.92)";ov.style.display="flex";
   ov.style.flexDirection="column";ov.style.alignItems="center";ov.style.justifyContent="center";
+  ov.style.overflow="hidden";
 
   var title=document.createElement("div");
   title.style.cssText="font-family:'Archivo Black',sans-serif;font-size:18px;color:#E63946;letter-spacing:4px;margin-bottom:2px";
@@ -1010,9 +1011,16 @@ function launchBrique(){
     +'<span id="bq-bonus" style="font-size:12px;color:#06D6A0;min-width:90px"></span>';
   ov.appendChild(hud);
 
+  // Fixed X button top-right — always visible, always works
+  var xbtn=document.createElement("button");
+  xbtn.textContent="✕";
+  xbtn.style.cssText="position:absolute;top:10px;right:14px;background:rgba(230,57,70,.25);border:2px solid #E63946;color:#E63946;width:36px;height:36px;border-radius:50%;cursor:pointer;font-weight:900;font-size:18px;display:flex;align-items:center;justify-content:center;z-index:10";
+  xbtn.onclick=function(){closeBrique();};
+  ov.appendChild(xbtn);
+  // Also bottom quit button
   var qbtn=document.createElement("button");
   qbtn.textContent="✕ Quitter";
-  qbtn.style.cssText="margin-top:10px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.55);padding:7px 20px;border-radius:8px;cursor:pointer;font-family:Nunito,sans-serif;font-weight:800;font-size:13px";
+  qbtn.style.cssText="margin-top:10px;background:rgba(230,57,70,.2);border:1px solid #E63946;color:#E63946;padding:7px 20px;border-radius:8px;cursor:pointer;font-family:Nunito,sans-serif;font-weight:800;font-size:13px";
   qbtn.onclick=function(){closeBrique();};
   ov.appendChild(qbtn);
   document.body.appendChild(ov);
@@ -1262,8 +1270,14 @@ function launchBrique(){
       }
       // Launch hint
       if(balls.some(function(b){return b.stuck;})){
-        ctx.fillStyle="rgba(255,255,255,.4)";ctx.font="bold 11px Nunito,sans-serif";
-        ctx.textAlign="center";ctx.fillText("ESPACE ou clic pour lancer",W/2,pad.y-12);ctx.textAlign="left";
+        // Big pulsing launch hint
+        var tp=0.5+0.5*Math.sin(Date.now()/400);
+        ctx.fillStyle="rgba(255,209,102,"+(0.6+tp*0.4)+")";
+        ctx.font="bold 13px 'Archivo Black',sans-serif";
+        ctx.textAlign="center";
+        ctx.shadowColor="#FFD166";ctx.shadowBlur=8*tp;
+        ctx.fillText("▶ ESPACE ou CLIC pour lancer",W/2,pad.y-16);
+        ctx.shadowBlur=0;ctx.textAlign="left";
       }
       // Level display
       ctx.fillStyle="rgba(155,93,229,.5)";ctx.font="bold 10px Archivo Black,sans-serif";
@@ -1297,6 +1311,8 @@ function launchBrique(){
   var keyU=function(e){keys[e.key]=false;};
   document.addEventListener("keydown",keyH,true);
   document.addEventListener("keyup",keyU,true);
+  // Click on dark overlay area (outside canvas) → quit
+  ov.addEventListener("mousedown",function(e){if(e.target===ov)closeBrique();});
   ov._cleanup=function(){cancelAnimationFrame(rAF);document.removeEventListener("keydown",keyH,true);document.removeEventListener("keyup",keyU,true);};
   rAF=requestAnimationFrame(loop);
 }
