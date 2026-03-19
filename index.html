@@ -1496,14 +1496,26 @@ async function fetchDefinition(word){
   // Helper: try to fetch a word's definition
   async function tryFetch(w){
     if(!w)return null;
+    // Try title-case and capitalized forms first (Wiktionnaire is case-sensitive)
+    var caps=[w, w.charAt(0).toUpperCase()+w.slice(1)];
     var cs=makeAccentCandidates(w);
-    for(var i=0;i<cs.length;i++){var t=await fetchWiktionaryExtract(cs[i]);if(t)return t;}
-    // Fallback: search Wiktionnaire (handles redirects, alternate spellings, pages without ol>li)
+    var allCands=caps.concat(cs).filter(function(v,i,a){return a.indexOf(v)===i});
+    for(var i=0;i<allCands.length;i++){var t=await fetchWiktionaryExtract(allCands[i]);if(t)return t;}
+    // Fallback: search Wiktionnaire (handles redirects, alternate spellings)
     try{
       var hits=await searchWiktionary(w);
       for(var j=0;j<hits.length;j++){
         var title=hits[j]&&hits[j].title;
         if(title){var t2=await fetchWiktionaryExtract(title);if(t2)return t2;}
+      }
+      // Also search with no accents
+      var plain=w.normalize('NFD').replace(/[̀-ͯ]/g,'');
+      if(plain!==w){
+        var hits2=await searchWiktionary(plain);
+        for(var k=0;k<hits2.length;k++){
+          var title2=hits2[k]&&hits2[k].title;
+          if(title2){var t3=await fetchWiktionaryExtract(title2);if(t3)return t3;}
+        }
       }
     }catch(e){}
     return null;
@@ -1989,7 +2001,7 @@ body.theme-graphite{--bg:#101114;--bg2:#17191e;--bg3:#23262d;--bg4:#2d313b;--t:#
   try{if(typeof settings==='object' && settings.mobileFontScale==null)settings.mobileFontScale=1;}catch(e){}
   window.APP_VERSION='v3.0';
   window._musicCrossfadeSec=2;
-  if(typeof eeKonami!=='undefined'){ eeKonami={length:0,push:function(){},shift:function(){},join:function(){return''}}; }
+  // eeKonami kept for easter egg key sequences (BRIQUE, Konami)
   var _eeAltClicks=0;
   window.eeVDE=function(){ _eeAltClicks++; if(_eeAltClicks>=3){ showEeToast('Mode constellation !'); fireFx('confetti'); sfx('bonus'); document.body.classList.add('theme-aurora'); setTimeout(function(){document.body.classList.remove('theme-aurora'); applySettings();},5000); _eeAltClicks=0; } else { showEeToast('VDE ✨'); } };
 
