@@ -1369,8 +1369,14 @@ async function fetchDefinition(word){
       lemmaWord=vm[1].toLowerCase();
       lemmaDef=await tryFetch(lemmaWord);
     }
+    // Catch adjective/noun forms: "Féminin singulier de X", "Masculin pluriel de X", etc.
     if(!lemmaDef){
-      var fm=directDef.match(/\bforme\s+de\s+([a-z\u00e0-\u00ff\u0153\u00e6]+)\b/i);
+      var gm2=directDef.match(/\b(?:f[eé]minin|masculin)(?:\s+(?:singulier|pluriel))?\s+de\s+([a-z\u00e0-\u00ff\u0153\u00e6]+)/i);
+      if(gm2){lemmaWord=gm2[1].toLowerCase();lemmaDef=await tryFetch(lemmaWord);}
+    }
+    // Catch "Pluriel de X", "Singulier de X", "Variante de X", "Forme de X"
+    if(!lemmaDef){
+      var fm=directDef.match(/\b(?:pluriel|singulier|variante\s+\w+|forme)\s+de\s+([a-z\u00e0-\u00ff\u0153\u00e6]+)/i);
       if(fm){lemmaWord=fm[1].toLowerCase();lemmaDef=await tryFetch(lemmaWord);}
     }
   } // close if(directDef)
