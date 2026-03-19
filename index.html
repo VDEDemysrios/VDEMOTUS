@@ -973,8 +973,8 @@ function launchBrique(){
   var ov=document.createElement("div");
   ov.id="brique-overlay";
   ov.style.cssText="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;";
-  ov.innerHTML='<div style="font-family:\'Archivo Black\',sans-serif;font-size:20px;color:var(--r);letter-spacing:4px;margin-bottom:8px">CASSE-BRIQUE</div>'
-    +'<div style="font-size:12px;color:var(--t2);margin-bottom:12px">← → pour déplacer · ESC pour quitter</div>'
+  ov.innerHTML='<div style="font-family:\'Archivo Black\',sans-serif;font-size:20px;color:var(--r);letter-spacing:4px;margin-bottom:4px">🧱 CASSE-BRIQUE</div><div style="font-size:10px;color:rgba(255,255,255,.4);letter-spacing:6px;margin-bottom:8px">by MOTUS · VDE</div></div>'
+    +'<div style="font-size:12px;color:var(--t2);margin-bottom:12px">← → ou Q/D pour déplacer · ESC pour quitter</div>'
     +'<canvas id="brique-canvas" width="480" height="380" style="border:2px solid var(--r);border-radius:10px;background:#0B0E14;max-width:96vw;touch-action:none"></canvas>'
     +'<div style="margin-top:12px;display:flex;gap:10px">'
     +'<span id="brique-score" style="font-family:\'Archivo Black\',sans-serif;color:var(--y);font-size:16px">Score : 0</span>'
@@ -1009,15 +1009,28 @@ function launchBrique(){
     ctx.beginPath();ctx.roundRect(x+2,y+2,bW-4,4,2);ctx.fill();
   }
   function drawPad(){
-    var g=ctx.createLinearGradient(pad.x,pad.y,pad.x,pad.y+pad.h);
-    g.addColorStop(0,"#E63946");g.addColorStop(1,"#8B0000");
+    // Glow shadow
+    ctx.shadowColor="#E63946";ctx.shadowBlur=12;
+    var g=ctx.createLinearGradient(pad.x,pad.y,pad.x+pad.w,pad.y);
+    g.addColorStop(0,"#C1121F");g.addColorStop(0.5,"#E63946");g.addColorStop(1,"#C1121F");
     ctx.fillStyle=g;
     ctx.beginPath();ctx.roundRect(pad.x,pad.y,pad.w,pad.h,5);ctx.fill();
+    // Shine
+    ctx.shadowBlur=0;
+    ctx.fillStyle="rgba(255,255,255,.25)";
+    ctx.beginPath();ctx.roundRect(pad.x+4,pad.y+2,pad.w-8,3,2);ctx.fill();
+    // MOTUS text on raquette
+    ctx.fillStyle="rgba(255,255,255,.5)";ctx.font="bold 7px Archivo Black,sans-serif";
+    ctx.textAlign="center";ctx.fillText("MOTUS",pad.x+pad.w/2,pad.y+pad.h-2);
+    ctx.textAlign="left";
   }
   function drawBall(){
-    var g=ctx.createRadialGradient(ball.x-2,ball.y-2,1,ball.x,ball.y,ball.r);
-    g.addColorStop(0,"#fff");g.addColorStop(1,"#FFD166");
-    ctx.fillStyle=g;ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2);ctx.fill();
+    var g=ctx.createRadialGradient(ball.x-2,ball.y-2,2,ball.x,ball.y,ball.r);
+    g.addColorStop(0,"#ffffff");g.addColorStop(0.4,"#FFD166");g.addColorStop(1,"#E63946");
+    ctx.fillStyle=g;
+    ctx.shadowColor="#E63946";ctx.shadowBlur=10;
+    ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;
   }
   function updateScore(){
     document.getElementById("brique-score").textContent="Score : "+score;
@@ -1034,16 +1047,22 @@ function launchBrique(){
   function loop(){
     if(!document.getElementById("brique-overlay")){cancelAnimationFrame(rAF);return;}
     ctx.clearRect(0,0,W,H);
-    // Background dots
-    ctx.fillStyle="rgba(230,57,70,.04)";
-    for(var i=0;i<12;i++)for(var j=0;j<9;j++){ctx.beginPath();ctx.arc(i*44,j*48,2,0,Math.PI*2);ctx.fill();}
+    // MOTUS background — animated subtle grid
+    ctx.fillStyle="rgba(230,57,70,.06)";
+    var t=Date.now()/3000;
+    for(var i=0;i<12;i++)for(var j=0;j<9;j++){
+      var pulse=0.5+0.5*Math.sin(t+i*0.4+j*0.6);
+      ctx.globalAlpha=0.03+0.04*pulse;
+      ctx.beginPath();ctx.arc(i*44,j*48,2,0,Math.PI*2);ctx.fill();
+    }
+    ctx.globalAlpha=1;
 
     bricks.forEach(function(b){if(b.alive)drawBrick(b);});
     drawPad();drawBall();
 
     if(!over){
       // Pad movement
-      if(keys["ArrowLeft"]||keys["a"]||keys["A"])pad.x=Math.max(0,pad.x-pad.spd);
+      if(keys["ArrowLeft"]||keys["q"]||keys["Q"])pad.x=Math.max(0,pad.x-pad.spd);
       if(keys["ArrowRight"]||keys["d"]||keys["D"])pad.x=Math.min(W-pad.w,pad.x+pad.spd);
 
       // Ball move
@@ -1454,19 +1473,22 @@ async function fetchWiktionaryExtract(title){
     var html=d&&d.parse&&d.parse.text&&d.parse.text["*"];
     if(!html)return null;
     var doc=new DOMParser().parseFromString(html,"text/html");
-    var items=Array.from(doc.querySelectorAll("ol > li"));
-    for(var i=0;i<items.length;i++){
-      var li=items[i];
-      var clone=li.cloneNode(true);
-      clone.querySelectorAll("ol, ul, dl, table, style, sup, .reference, blockquote").forEach(function(n){
-        n.remove();
-      });
-      var txt=(clone.textContent||"")
-        .replace(/\[\d+\]/g," ")
-        .replace(/\s+/g," ")
-        .trim();
-      if(txt && txt.length>8){
-        return txt.length>320 ? txt.slice(0,317)+"..." : txt;
+    // Try multiple selector strategies: ol>li (standard), then dd (some verbs), then p.definition
+    var selectors=["ol > li","dd","p"];
+    for(var si=0;si<selectors.length;si++){
+      var items=Array.from(doc.querySelectorAll(selectors[si]));
+      for(var i=0;i<items.length;i++){
+        var li=items[i];
+        var clone=li.cloneNode(true);
+        clone.querySelectorAll("ol, ul, dl, table, style, sup, .reference, blockquote, .mw-editsection").forEach(function(n){n.remove();});
+        var txt=(clone.textContent||"")
+          .replace(/\[\d+\]/g," ")
+          .replace(/\s+/g," ")
+          .trim();
+        // Skip navigation/header text
+        if(txt&&txt.length>8&&!/^(Voir aussi|Navigation|Wiktionnaire|Aide|Accueil|Portail|Discussion)/.test(txt)){
+          return txt.length>320?txt.slice(0,317)+"...":txt;
+        }
       }
     }
   }catch(e){}
