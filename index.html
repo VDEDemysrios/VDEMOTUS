@@ -1145,7 +1145,7 @@ function launchSpace(){
     '<div style="display:flex;flex-direction:column;align-items:center;gap:8px">'
     +'<div style="font-family:\'Archivo Black\',sans-serif;font-size:18px;color:#E63946;letter-spacing:4px">👾 SPACE MOTUS</div>'
     +'<div id="sp-bonus-bar" style="min-height:20px;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap"></div>'
-    +'<canvas id="space-canvas" width="500" height="420" style="border:2px solid #E63946;border-radius:10px;background:#030408;max-width:96vw;touch-action:none"></canvas>'
+    +'<canvas id="space-canvas" width="580" height="500" style="border:2px solid #E63946;border-radius:10px;background:#030408;max-width:96vw;touch-action:none"></canvas>'
     +'<div style="display:flex;gap:20px;align-items:center">'
     +'<span id="sp-level" style="font-family:\'Archivo Black\',sans-serif;color:#9B5DE5;font-size:13px">Niv.1</span>'
     +'<span id="sp-score" style="font-family:\'Archivo Black\',sans-serif;color:#FFD166;font-size:15px">Score: 0</span>'
@@ -1177,9 +1177,9 @@ function launchSpace(){
   // Level config: starts very easy, ramps progressively
   function levelCfg(){
     return {
-      spawnInterval: Math.max(1200, 3200 - level*260),  // ms between spawns
-      maxOnScreen:   Math.min(3+level, 12),              // cap on simultaneous
-      speed:         30 + level*10,                      // base px/s (30 at lv1, 130 at lv10)
+      spawnInterval: Math.max(900, 2200 - level*180),   // starts at 2200ms, min 900ms
+      maxOnScreen:   Math.min(4+level, 14),              // starts at 5, +1/level
+      speed:         52 + level*12,                      // 52 at lv1, 172 at lv10
       hp:            level >= 5 ? 2 : 1,
       shotInterval:  BONUS_ACTIVE.rapid ? 160 : BONUS_ACTIVE.multi ? 110 : 380
     };
@@ -1200,6 +1200,109 @@ function launchSpace(){
     var pool=[];BONUS_DEFS.forEach(function(b){for(var i=0;i<(4-b.rare);i++)pool.push(b);});
     return pool[Math.floor(Math.random()*pool.length)];
   }
+  // ── Boss ──
+  var boss=null;
+  function spawnBoss(){
+    var bHp=20+level*5;
+    boss={
+      x:W/2, y:-40, w:60, h:50,
+      hp:bHp, maxHp:bHp,
+      spd:28+level*3,
+      vx:60+level*5,
+      phase:0, age:0,
+      letter:"M", // cycles through MOTUS
+      color:"#E63946"
+    };
+    showBonusToast("⚠️ BOSS NIVEAU "+level+" !");
+    sfx("lose");
+  }
+
+  function drawBoss(){
+    if(!boss)return;
+    ctx.save();ctx.translate(boss.x,boss.y);
+    var p=0.5+0.5*Math.sin(boss.age*4);
+    // Outer glow ring
+    ctx.shadowColor="#E63946";ctx.shadowBlur=20+p*18;
+    ctx.strokeStyle="#E63946";ctx.lineWidth=2+p*1.5;ctx.globalAlpha=0.5+p*0.3;
+    ctx.beginPath();ctx.arc(0,0,34,0,Math.PI*2);ctx.stroke();
+    ctx.globalAlpha=1;ctx.shadowBlur=0;
+    // Body
+    ctx.shadowColor="#E63946";ctx.shadowBlur=16+p*10;
+    var g=ctx.createRadialGradient(0,-5,4,0,0,32);
+    g.addColorStop(0,"#FF6B35");g.addColorStop(0.5,"#E63946");g.addColorStop(1,"#8B0000");
+    ctx.fillStyle=g;
+    ctx.beginPath();
+    ctx.moveTo(0,-30);ctx.lineTo(-26,-10);ctx.lineTo(-32,16);ctx.lineTo(-14,28);
+    ctx.lineTo(0,22);ctx.lineTo(14,28);ctx.lineTo(32,16);ctx.lineTo(26,-10);ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur=0;
+    // MOTUS letters on boss
+    ctx.fillStyle="#FFD166";ctx.font="bold 16px 'Archivo Black',sans-serif";
+    ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("BOSS",0,1);
+    // HP bar
+    var bw=56,bh=6,bx=-28,by=36;
+    ctx.fillStyle="rgba(0,0,0,.7)";ctx.fillRect(bx,by,bw,bh);
+    var pct=boss.hp/boss.maxHp;
+    var hpColor=pct>0.5?"#06D6A0":pct>0.25?"#FFD166":"#E63946";
+    ctx.fillStyle=hpColor;ctx.shadowColor=hpColor;ctx.shadowBlur=6;
+    ctx.fillRect(bx,by,bw*pct,bh);
+    ctx.shadowBlur=0;
+    // HP text
+    ctx.fillStyle="#fff";ctx.font="bold 8px Nunito,sans-serif";ctx.globalAlpha=0.8;
+    ctx.fillText(boss.hp+"/"+boss.maxHp,0,by+bh+8);
+    ctx.globalAlpha=1;ctx.restore();
+  }
+
+  function updateBoss(dtS){
+    if(!boss)return;
+    boss.age+=dtS;
+    boss.x+=boss.vx*dtS;boss.y+=boss.spd*dtS;
+    if(boss.x-30<0){boss.x=30;boss.vx=Math.abs(boss.vx);}
+    if(boss.x+30>W){boss.x=W-30;boss.vx=-Math.abs(boss.vx);}
+    // Boss drops to ~25% height then stays
+    if(boss.y>H*0.18)boss.spd=Math.max(0,boss.spd-60*dtS);
+    // Boss fires back every 2s
+    boss.phase+=dtS;
+    if(boss.phase>2){
+      boss.phase=0;
+      // Shoot 3 bullets downward at ship direction
+      var dx=ship.x-boss.x,dy=ship.y-boss.y;
+      var dist=Math.sqrt(dx*dx+dy*dy)||1;
+      for(var i=-1;i<=1;i++){
+        var angle=Math.atan2(dy,dx)+i*0.25;
+        enemies.push({
+          x:boss.x+Math.cos(angle)*35,y:boss.y+Math.sin(angle)*35,
+          vx:Math.cos(angle)*180,spd:Math.sin(angle)*180,
+          letter:"•",color:"#FF6B35",hp:1,maxhp:1,age:0,
+          isBullet:true
+        });
+      }
+    }
+    // Bullet hits boss
+    for(var bi=bullets.length-1;bi>=0;bi--){
+      var b=bullets[bi];
+      if(rect(b.x-b.w/2,b.y-b.h,b.w,b.h,boss.x-30,boss.y-30,60,58)){
+        bullets.splice(bi,1);boss.hp--;
+        if(boss.hp<=0){
+          explode(boss.x,boss.y,"#E63946",true);explode(boss.x-20,boss.y-10,"#FFD166",false);
+          score+=200+level*20;sfx("win");fireFx&&fireFx("confetti");
+          showBonusToast("🏆 BOSS VAINCU ! +"+(200+level*20)+" pts");
+          // Drop 3 bonuses
+          var bx2=boss?boss.x:W/2,by2=boss?boss.y:80;boss=null;
+          for(var k=0;k<3;k++)bonuses.push({x:bx2-40+k*40,y:by2,spd:55,def:pickBonusDef(),pulse:0});
+          break;
+        }
+      }
+    }
+    // Ship hits boss
+    if(!BONUS_ACTIVE.ghost&&!BONUS_ACTIVE.shield&&shipInvincible<=0){
+      if(rect(ship.x-13,ship.y-10,26,20,boss.x-28,boss.y-28,56,50)){
+        lives--;sfx("lose");explode(ship.x,ship.y,"#FFD166",false);
+        shipFlash=1;shipInvincible=2000;updateHUD();if(lives<=0)over=true;
+      }
+    }
+  }
+
 
   function spawnEnemy(){
     var cfg=levelCfg();
@@ -1366,7 +1469,7 @@ function launchSpace(){
     Object.keys(BONUS_ACTIVE).forEach(function(k){BONUS_ACTIVE[k].timer-=dt;if(BONUS_ACTIVE[k].timer<=0){delete BONUS_ACTIVE[k];anyChanged=true;}});
     if(anyChanged)updateBonusBar();
     var newLevel=1+Math.floor(score/250);
-    if(newLevel>level){level=newLevel;showBonusToast("⚡ NIVEAU "+level+" !");}
+    if(newLevel>level){level=newLevel;showBonusToast("⚡ NIVEAU "+level+" !");if(level%10===0)spawnBoss();}
     var spd=ship.spd*dtS;
     if(keys["ArrowLeft"]||keys["q"]||keys["Q"])ship.x=Math.max(18,ship.x-spd);
     if(keys["ArrowRight"]||keys["d"]||keys["D"])ship.x=Math.min(W-18,ship.x+spd);
@@ -1410,6 +1513,7 @@ function launchSpace(){
         }
       }
     }
+    updateBoss(dtS);
     particles=particles.filter(function(p){p.x+=p.vx*dtS;p.y+=p.vy*dtS;p.vy+=70*dtS;p.life-=p.dec*dt/16;return p.life>0;});
     updateHUD();
   }
@@ -1443,6 +1547,7 @@ function launchSpace(){
     });
     bonuses.forEach(drawBonus);
     enemies.forEach(drawEnemy);
+    drawBoss();
     particles.forEach(function(p){
       if(p.isLaser){
         ctx.globalAlpha=p.life*0.7;ctx.strokeStyle=p.color;ctx.lineWidth=p.r*2;
