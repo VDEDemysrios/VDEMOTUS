@@ -1990,6 +1990,27 @@ function makeAccentCandidates(word){
 }
 async function fetchWiktionaryExtract(title){
   try{
+    // Strategy 0: raw wikitext (most reliable for sparse verb pages)
+    var wtUrl="https://fr.wiktionary.org/w/api.php?action=query&titles="+encodeURIComponent(title)+"&prop=revisions&rvprop=content&format=json&origin=*";
+    try{
+      var wtR=await fetch(wtUrl);var wtD=await wtR.json();
+      var pages=wtD&&wtD.query&&wtD.query.pages;
+      if(pages){
+        var pageId=Object.keys(pages)[0];
+        var revs=pages[pageId]&&pages[pageId].revisions;
+        if(revs&&revs[0]){
+          var wt=revs[0]["*"]||revs[0].content||"";
+          // Find definition lines: "# texte" in wikitext (excluding "## ", "#:" etc.)
+          var defLines=wt.split("\n").filter(function(l){return /^#[^#:*]/.test(l.trim());});
+          if(defLines.length){
+            var def=defLines[0].replace(/^#+\s*/,"")
+              .replace(/\{\{[^}]*\}\}/g,"").replace(/\[\[(?:[^|\]]*\|)?([^\]]+)\]\]/g,"$1")
+              .replace(/'{2,}/g,"").replace(/\s+/g," ").trim();
+            if(def&&def.length>8)return def.length>320?def.slice(0,317)+"...":def;
+          }
+        }
+      }
+    }catch(e2){}
     var url="https://fr.wiktionary.org/w/api.php?action=parse&page="+encodeURIComponent(title)+"&prop=text&format=json&origin=*";
     var r=await fetch(url);
     var d=await r.json();
