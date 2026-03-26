@@ -2416,7 +2416,8 @@ function showResult(){var gw=document.getElementById("gw");if(!gw)return;var rk=
   if(gm!=="daily"&&gm!=="multi-timed"&&gm!=="multi-words"&&gm!=="multi-battle"&&!won)h+='<button class="btn bp bsm" onclick="startGame(\''+(gm==="timer"&&isExp?"timer-expert":gm)+'\')">Rejouer</button>';
   if(gm==="solo"&&won)h+='<button class="btn bs bsm" onclick="clearSoloState();startGame(\'solo\')">Nouvelle série</button>';
   if(gm==="daily")h+='<div style="font-size:12px;color:var(--t3)">Reviens demain !</div>';
-  h+='<button class="btn bs bsm" onclick="copyResultSummary()">Copier le résultat</button><button class="btn bs bsm" onclick="goHome()">Menu</button></div></div>';
+  if(gm==="daily"&&over)h+='<button class="btn bs bsm" onclick="showResult()">📊 Revoir résultat</button>';
+  h+='<button class="btn bs bsm" onclick="copyResultSummary()">Copier le résultat</button>'+'<button class="btn bs bsm" onclick="goHome()">Menu</button></div></div>';
   var old=gw.querySelector(".rov");if(old)old.remove();gw.insertAdjacentHTML("beforeend",h);
   if(showDef){fetchDefinition(tgt).then(function(def){var dz=document.getElementById("defzone");if(dz)dz.textContent=def||"Aucune définition trouvée pour ce mot."}).catch(function(){var dz=document.getElementById("defzone");if(dz)dz.textContent="Aucune définition trouvée pour ce mot."})}
 }
@@ -2725,6 +2726,31 @@ async function resetArchivedHistoryCounts(){
   saveHistArchiveStats();
   renderHist();
 }
+function showHistDetail(idx){
+  var h2=hist[idx];if(!h2)return;
+  var COLORS={correct:"var(--r)",present:"var(--y)",absent:"var(--g)"};
+  var lines="";
+  (h2.guesses||[]).forEach(function(g,i){
+    var res=(h2.results&&h2.results[i])||[];
+    lines+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">'
+      +'<span style="font-size:11px;color:var(--t3);min-width:18px;font-weight:800">'+(i+1)+'</span>';
+    for(var c=0;c<g.length;c++){
+      var col=COLORS[res[c]]||"var(--g)";
+      lines+='<div style="width:32px;height:32px;border-radius:6px;background:'+col+';display:flex;align-items:center;justify-content:center;font-family:Archivo Black,sans-serif;font-size:14px;color:#fff;font-weight:900">'+g[c]+'</div>';
+    }
+    lines+='</div>';
+  });
+  if(!lines)lines='<div style="color:var(--t3);font-size:13px">Aucun essai enregistré.</div>';
+  var won=h2.won;
+  var modal='<div class="modal-bg" onclick="if(event.target===this)closeModal()">'
+    +'<div class="modal" style="max-width:420px">'
+    +'<button class="modal-close" onclick="closeModal()">✕</button>'
+    +'<h3 style="color:'+(won?"var(--gr)":"var(--r)")+';">'+(won?"✅":"❌")+' '+escHtml(h2.word||"?")+'</h3>'
+    +'<div style="font-size:11px;color:var(--t2);margin-bottom:12px">'+(h2.guesses&&h2.guesses.length||0)+' essai'+(h2.guesses&&h2.guesses.length>1?"s":"")+(won?" · Trouvé":" · Non trouvé")+'</div>'
+    +'<div>'+lines+'</div>'
+    +'</div></div>';
+  document.getElementById("modals").innerHTML=modal;
+}
 function renderHist(){showScreen("hist");
   var mi=function(m){return{daily:"🎯 Quotidien",solo:"♾️ Solo",timer:"⏱️ Chrono","multi-timed":"👥⏱️ Multi chrono","multi-words":"👥🎯 Multi series"}[m]||"🎮 Autre"};
   var hd=(hist||[]).slice();
@@ -2733,7 +2759,7 @@ function renderHist(){showScreen("hist");
   if(histFilter==="expert")hd=hd.filter(function(h){return !!h.expert});
   var totals=getHistTotals();
   var total=totals.total,wins=totals.wins,losses=totals.losses,expCount=totals.expert,wr=total?Math.round(wins/total*100):0;
-  document.getElementById("s-hist").innerHTML='<div class="hist-wrap"><button class="bk" onclick="renderHome()">Retour</button><div class="hist-hero"><div class="hist-hero-top"><div><div class="hist-title">📖 Historique</div><div class="hist-sub">Retrouve tes parties, tes victoires, tes defaites et tes runs expert d un seul coup d oeil.</div></div><div class="hist-meta-row"><span class="hist-pill">Total '+total+'</span><span class="hist-pill">Winrate '+wr+'%</span></div></div><div class="hist-stats"><div class="hist-stat"><div class="hist-stat-k">Parties</div><div class="hist-stat-v">'+total+'</div></div><div class="hist-stat"><div class="hist-stat-k">Victoires</div><div class="hist-stat-v" style="color:var(--gr)">'+wins+'</div></div><div class="hist-stat"><div class="hist-stat-k">Defaites</div><div class="hist-stat-v" style="color:#ff8f8f">'+losses+'</div></div><div class="hist-stat"><div class="hist-stat-k">Expert</div><div class="hist-stat-v" style="color:var(--ex)">'+expCount+'</div></div></div></div><div class="hist-toolbar"><button class="btn '+(histFilter==="all"?'bp':'bs')+' bsm" onclick="setHistFilter(\'all\')">Tout</button><button class="btn '+(histFilter==="wins"?'bp':'bs')+' bsm" onclick="setHistFilter(\'wins\')">Victoires</button><button class="btn '+(histFilter==="losses"?'bp':'bs')+' bsm" onclick="setHistFilter(\'losses\')">Defaites</button><button class="btn '+(histFilter==="expert"?'bex':'bs')+' bsm" onclick="setHistFilter(\'expert\')">Expert</button>'+(user&&!user.guest?'<button class="btn bs bsm" onclick="clearHistoryEntries()">Nettoyer les grilles</button><button class="btn bs bsm" onclick="resetArchivedHistoryCounts()">Reset compteurs</button>':'')+'</div>'+(hd.length?'<div class="hist-list">'+hd.map(function(h2){var guessesCount=(h2.guesses&&h2.guesses.length)||0;var rk=getRank(h2.won?(guessesCount||7):7);var topColor=h2.won?'var(--r)':'var(--t2)';return'<div class="hist-card"><div class="hist-card-top"><div class="hist-word-box"><div class="hist-word-big" style="color:'+topColor+'">'+escHtml(h2.word||"?")+'</div><div class="hist-meta-row"><span class="hist-pill">'+mi(h2.mode)+'</span>'+(h2.expert?'<span class="hist-pill" style="background:rgba(255,107,53,.12);color:var(--ex)">💀 Expert</span>':'')+'<span class="hist-pill">'+(guessesCount?guessesCount+' essai'+(guessesCount>1?'s':''):'0 essai')+'</span></div></div><div class="hist-status '+(h2.won?'win':'lose')+'">'+(h2.won?'Gagne':'Perdu')+'</div></div><div class="hist-grid-list">'+((h2.results||[]).map(function(rw,idx){return'<div class="hist-grid-row"><div class="hist-grid-label">L'+(idx+1)+'</div><div class="hist-grid-dots">'+rw.map(function(r){return'<div class="hcd" style="background:'+(r==="correct"?"var(--r)":r==="present"?"var(--y)":"var(--g)")+'"></div>'}).join('')+'</div></div>'}).join('')||'<div class="hist-grid-row"><div class="hist-grid-label">—</div><div style="font-size:12px;color:var(--t3)">Aucune tentative detaillee</div></div>')+'</div><div class="hist-bottom"><div class="hist-rank"><span>'+rk.e+'</span><span>'+rk.t+'</span></div><div class="hist-pill">'+(h2.won?'Trouve en '+guessesCount:'Mot non trouve')+'</div></div></div>'}).join('')+'</div>':'<div class="hist-empty"><div class="hist-empty-emoji">🗂️</div><div class="hist-empty-title">Historique encore vide</div><div class="hist-empty-sub">Joue quelques parties pour retrouver ici tes mots, tes victoires et tes runs expert. Les filtres te permettront ensuite de tout relire facilement.</div>'+(user&&!user.guest?'<div class="rbs" style="margin-top:14px"><button class="btn bs" onclick="clearHistoryEntries()">Nettoyer les grilles</button><button class="btn bs" onclick="resetArchivedHistoryCounts()">Reset compteurs</button></div>':'')+'<div class="rbs" style="margin-top:14px"><button class="btn bp" onclick="needAuth(\'daily\')">Lancer le mot du jour</button><button class="btn bs" onclick="needAuth(\'solo\')">Partie rapide</button></div></div>')+'</div>'}
+  document.getElementById("s-hist").innerHTML='<div class="hist-wrap"><button class="bk" onclick="renderHome()">Retour</button><div class="hist-hero"><div class="hist-hero-top"><div><div class="hist-title">📖 Historique</div><div class="hist-sub">Retrouve tes parties, tes victoires, tes defaites et tes runs expert d un seul coup d oeil.</div></div><div class="hist-meta-row"><span class="hist-pill">Total '+total+'</span><span class="hist-pill">Winrate '+wr+'%</span></div></div><div class="hist-stats"><div class="hist-stat"><div class="hist-stat-k">Parties</div><div class="hist-stat-v">'+total+'</div></div><div class="hist-stat"><div class="hist-stat-k">Victoires</div><div class="hist-stat-v" style="color:var(--gr)">'+wins+'</div></div><div class="hist-stat"><div class="hist-stat-k">Defaites</div><div class="hist-stat-v" style="color:#ff8f8f">'+losses+'</div></div><div class="hist-stat"><div class="hist-stat-k">Expert</div><div class="hist-stat-v" style="color:var(--ex)">'+expCount+'</div></div></div></div><div class="hist-toolbar"><button class="btn '+(histFilter==="all"?'bp':'bs')+' bsm" onclick="setHistFilter(\'all\')">Tout</button><button class="btn '+(histFilter==="wins"?'bp':'bs')+' bsm" onclick="setHistFilter(\'wins\')">Victoires</button><button class="btn '+(histFilter==="losses"?'bp':'bs')+' bsm" onclick="setHistFilter(\'losses\')">Defaites</button><button class="btn '+(histFilter==="expert"?'bex':'bs')+' bsm" onclick="setHistFilter(\'expert\')">Expert</button>'+(user&&!user.guest?'<button class="btn bs bsm" onclick="clearHistoryEntries()">Nettoyer les grilles</button><button class="btn bs bsm" onclick="resetArchivedHistoryCounts()">Reset compteurs</button>':'')+'</div>'+(hd.length?'<div class="hist-list">'+hd.map(function(h2){var guessesCount=(h2.guesses&&h2.guesses.length)||0;var rk=getRank(h2.won?(guessesCount||7):7);var topColor=h2.won?'var(--r)':'var(--t2)';return'<div class="hist-card"><div class="hist-card-top"><div class="hist-word-box"><div class="hist-word-big" style="color:'+topColor+';cursor:pointer" onclick="showHistDetail('+hd.indexOf(h2)+')">'+escHtml(h2.word||"?")+'</div><div class="hist-meta-row"><span class="hist-pill">'+mi(h2.mode)+'</span>'+(h2.expert?'<span class="hist-pill" style="background:rgba(255,107,53,.12);color:var(--ex)">💀 Expert</span>':'')+'<span class="hist-pill">'+(guessesCount?guessesCount+' essai'+(guessesCount>1?'s':''):'0 essai')+'</span></div></div><div class="hist-status '+(h2.won?'win':'lose')+'">'+(h2.won?'Gagne':'Perdu')+'</div></div><div class="hist-grid-list">'+((h2.results||[]).map(function(rw,idx){return'<div class="hist-grid-row"><div class="hist-grid-label">L'+(idx+1)+'</div><div class="hist-grid-dots">'+rw.map(function(r){return'<div class="hcd" style="background:'+(r==="correct"?"var(--r)":r==="present"?"var(--y)":"var(--g)")+'"></div>'}).join('')+'</div></div>'}).join('')||'<div class="hist-grid-row"><div class="hist-grid-label">—</div><div style="font-size:12px;color:var(--t3)">Aucune tentative detaillee</div></div>')+'</div><div class="hist-bottom"><div class="hist-rank"><span>'+rk.e+'</span><span>'+rk.t+'</span></div><div class="hist-pill">'+(h2.won?'Trouve en '+guessesCount:'Mot non trouve')+'</div></div></div>'}).join('')+'</div>':'<div class="hist-empty"><div class="hist-empty-emoji">🗂️</div><div class="hist-empty-title">Historique encore vide</div><div class="hist-empty-sub">Joue quelques parties pour retrouver ici tes mots, tes victoires et tes runs expert. Les filtres te permettront ensuite de tout relire facilement.</div>'+(user&&!user.guest?'<div class="rbs" style="margin-top:14px"><button class="btn bs" onclick="clearHistoryEntries()">Nettoyer les grilles</button><button class="btn bs" onclick="resetArchivedHistoryCounts()">Reset compteurs</button></div>':'')+'<div class="rbs" style="margin-top:14px"><button class="btn bp" onclick="needAuth(\'daily\')">Lancer le mot du jour</button><button class="btn bs" onclick="needAuth(\'solo\')">Partie rapide</button></div></div>')+'</div>'}
 
 // ═══ KEYBOARD ═══
 document.addEventListener("keydown",function(e){if(document.getElementById("s-game").classList.contains("hidden"))return;if(document.activeElement&&document.activeElement.classList.contains("chat-in"))return;if(e.key==="Enter")handleKey("ENTER");else if(e.key==="Backspace"){e.preventDefault();handleKey("BACK")}else if(e.key===".")handleKey(".");else if(/^[a-zA-Z]$/.test(e.key))handleKey(e.key.toUpperCase())});
@@ -2782,13 +2808,28 @@ body.theme-graphite{--bg:#101114;--bg2:#17191e;--bg3:#23262d;--bg4:#2d313b;--t:#
     return (t||w).slice(0,6);
   }
   if(typeof hs==='function' && Array.isArray(WL)){
+    // Shuffle WL with a fixed seed so word order is not alphabetical
+    (function(){
+      var n=WL.length;
+      // Fisher-Yates with seeded LCG
+      var seed=362436069;
+      function rand(){seed=(seed*1664525+1013904223)&0xffffffff;return Math.abs(seed);}
+      for(var i=n-1;i>0;i--){var j=rand()%(i+1);var t=WL[i];WL[i]=WL[j];WL[j]=t;}
+    })();
     window.wordDay=function(d){
-      var base=hs(d)%WL.length, best=WL[base], badRoots={};
-      for(var off=-4;off<=4;off++){ if(off===0) continue; var w=WL[(base+off+WL.length)%WL.length]; badRoots[rootish(w)]=1; }
-      if(!badRoots[rootish(best)]) return best;
-      for(var step=1; step<50; step++){
-        var cand=WL[(base + step*7) % WL.length];
-        if(!badRoots[rootish(cand)]) return cand;
+      // Strong double-hash for good distribution
+      var h=hs(d);
+      h=Math.imul(h^(h>>>16),0x45d9f3b)|0;
+      h=Math.imul(h^(h>>>16),0x45d9f3b)|0;
+      h=Math.abs(h^(h>>>16));
+      var base=h%WL.length;
+      var best=WL[base];
+      var badRoots={};
+      for(var off=-5;off<=5;off++){if(off===0)continue;var w=WL[(base+off+WL.length)%WL.length];badRoots[rootish(w)]=1;}
+      if(!badRoots[rootish(best)])return best;
+      for(var step=1;step<80;step++){
+        var cand=WL[(base+step*31)%WL.length];
+        if(!badRoots[rootish(cand)])return cand;
       }
       return best;
     };
@@ -2924,7 +2965,10 @@ body.theme-graphite{--bg:#101114;--bg2:#17191e;--bg3:#23262d;--bg4:#2d313b;--t:#
     if(gm==='multi-battle'&&won) h+='<button class="btn bp bsm" onclick="showMultiRanking()">🏆 Classement</button>';
     if(gm!=='daily'&&gm!=='multi-timed'&&gm!=='multi-words'&&gm!=='multi-battle'&&!won) h+='<button class="btn bp bsm" onclick="startGame(\''+( gm==='timer'&&isExp?'timer-expert':gm )+'\')">Rejouer</button>';
     if(gm==='solo'&&won) h+='<button class="btn bs bsm" onclick="clearSoloState();startGame(\'solo\')">Nouvelle série</button>';
-    if(gm==='daily') h+='<div style="font-size:12px;color:var(--t3)">Reviens demain !</div>';
+    if(gm==='daily'){
+      h+='<div style="font-size:12px;color:var(--t3)">Reviens demain !</div>';
+      h+='<button class="btn bs bsm" onclick="var r=document.querySelector(\'.rov\');if(r)r.remove()">✕ Fermer</button>';
+    }
     h+='<button class="btn bs bsm" onclick="copyResultSummary()">Copier le résultat</button>';
     h+='<button class="btn bs bsm" onclick="goHome()">Menu</button></div></div>';
     var old=gw.querySelector('.rov'); if(old)old.remove();
