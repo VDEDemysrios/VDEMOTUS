@@ -1849,7 +1849,7 @@ function showScreen(id){
   var inGame=(id==="game"||id==="lobby");
   document.body.classList.toggle("in-game",inGame);
 }
-function goHome(){spectator=false;clearInterval(window._spectatorCheckIv);if(gm==="solo"&&!over)saveSoloState();else if(gm==="solo"&&over)clearSoloState();clearInterval(timerIv);timerOn=false;clearInterval(lobbyIv);clearInterval(multiPollIv);clearInterval(heartbeatIv);clearInterval(window._chatIv);window._chatIv=null;clearInterval(homePollIv);clearInterval(lobbyBrowserIv);clearInterval(presenceCleanupIv);fxR=false;if(user)sb.from("lobby").delete().eq("username",user.username);chatScope="global";renderHome()}
+function goHome(){spectator=false;clearInterval(window._spectatorCheckIv);var drb=document.getElementById("daily-reopen");if(drb)drb.remove();if(gm==="solo"&&!over)saveSoloState();else if(gm==="solo"&&over)clearSoloState();clearInterval(timerIv);timerOn=false;clearInterval(lobbyIv);clearInterval(multiPollIv);clearInterval(heartbeatIv);clearInterval(window._chatIv);window._chatIv=null;clearInterval(homePollIv);clearInterval(lobbyBrowserIv);clearInterval(presenceCleanupIv);fxR=false;if(user)sb.from("lobby").delete().eq("username",user.username);chatScope="global";renderHome()}
 function syncDay(force){var nd=localDay();if(force||nd!==day){day=nd;return true}return false}
 function startDayWatcher(){clearInterval(dayWatcherIv);dayWatcherIv=setInterval(function(){var changed=syncDay(false);if(changed&&gm==="daily"&&!over){tgt=wordDay(day);guesses=[];results=[];cur="";row=0;over=false;won=false;kbs={};renderGame()}},60000)}
 
@@ -2418,6 +2418,16 @@ function showResult(){var gw=document.getElementById("gw");if(!gw)return;var rk=
   if(gm==="daily")h+='<div style="font-size:12px;color:var(--t3)">Reviens demain !</div>';
   if(gm==="daily"&&over)h+='<button class="btn bs bsm" onclick="showResult()">📊 Revoir résultat</button>';
   h+='<button class="btn bs bsm" onclick="copyResultSummary()">Copier le résultat</button>'+'<button class="btn bs bsm" onclick="goHome()">Menu</button></div></div>';
+
+  // Persistent reopen button for daily — survives .rov removal
+  if(gm==="daily"&&over){
+    var old2=document.getElementById("daily-reopen");if(old2)old2.remove();
+    var rb=document.createElement("button");
+    rb.id="daily-reopen";rb.textContent="📊 Résultat";
+    rb.style.cssText="position:fixed;bottom:70px;right:16px;z-index:55;background:var(--r);color:#fff;border:none;border-radius:12px;padding:8px 14px;font-family:'Archivo Black',sans-serif;font-size:12px;cursor:pointer;letter-spacing:1px;box-shadow:0 4px 18px rgba(230,57,70,.35)";
+    rb.onclick=function(){showResult();};
+    document.body.appendChild(rb);
+  }
   var old=gw.querySelector(".rov");if(old)old.remove();gw.insertAdjacentHTML("beforeend",h);
   if(showDef){fetchDefinition(tgt).then(function(def){var dz=document.getElementById("defzone");if(dz)dz.textContent=def||"Aucune définition trouvée pour ce mot."}).catch(function(){var dz=document.getElementById("defzone");if(dz)dz.textContent="Aucune définition trouvée pour ce mot."})}
 }
@@ -2732,7 +2742,7 @@ function showHistDetail(idx){
   var lines="";
   (h2.guesses||[]).forEach(function(g,i){
     var res=(h2.results&&h2.results[i])||[];
-    lines+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">'
+    lines+='<div style="display:flex;gap:5px;align-items:center;justify-content:center">'
       +'<span style="font-size:11px;color:var(--t3);min-width:18px;font-weight:800">'+(i+1)+'</span>';
     for(var c=0;c<g.length;c++){
       var col=COLORS[res[c]]||"var(--g)";
@@ -2747,7 +2757,7 @@ function showHistDetail(idx){
     +'<button class="modal-close" onclick="closeModal()">✕</button>'
     +'<h3 style="color:'+(won?"var(--gr)":"var(--r)")+';">'+(won?"✅":"❌")+' '+escHtml(h2.word||"?")+'</h3>'
     +'<div style="font-size:11px;color:var(--t2);margin-bottom:12px">'+(h2.guesses&&h2.guesses.length||0)+' essai'+(h2.guesses&&h2.guesses.length>1?"s":"")+(won?" · Trouvé":" · Non trouvé")+'</div>'
-    +'<div>'+lines+'</div>'
+    +'<div style="display:flex;flex-direction:column;align-items:center;gap:4px">'+lines+'</div>'
     +'</div></div>';
   document.getElementById("modals").innerHTML=modal;
 }
@@ -2973,6 +2983,15 @@ body.theme-graphite{--bg:#101114;--bg2:#17191e;--bg3:#23262d;--bg4:#2d313b;--t:#
     h+='<button class="btn bs bsm" onclick="goHome()">Menu</button></div></div>';
     var old=gw.querySelector('.rov'); if(old)old.remove();
     gw.insertAdjacentHTML('beforeend',h);
+    // Persistent 📊 button — survives rov removal
+    if(gm==='daily'&&over){
+      var drb=document.getElementById('daily-reopen');if(drb)drb.remove();
+      var rb=document.createElement('button');
+      rb.id='daily-reopen';rb.textContent='📊 Résultat';
+      rb.style.cssText='position:fixed;bottom:70px;right:16px;z-index:55;background:var(--r);color:#fff;border:none;border-radius:12px;padding:8px 14px;font-family:Archivo Black,sans-serif;font-size:12px;cursor:pointer;letter-spacing:1px;box-shadow:0 4px 18px rgba(230,57,70,.35)';
+      rb.onclick=function(){showResult();};
+      document.body.appendChild(rb);
+    }
     if(showDef){ fetchDefinition(tgt).then(function(def){ var dz=document.getElementById('defzone'); if(dz)dz.textContent=def||'Aucune définition trouvée pour ce mot.'; }).catch(function(){ var dz=document.getElementById('defzone'); if(dz)dz.textContent='Aucune définition trouvée pour ce mot.'; }); }
   }
 
